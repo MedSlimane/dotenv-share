@@ -1,0 +1,319 @@
+"use client";
+
+import { useParams, useRouter } from "next/navigation";
+import { useConvexAuth, useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useEffect, useState, useCallback } from "react";
+import { Header } from "@/components/Header";
+import {
+  getOrDeriveKey,
+  getStoredPassphrase,
+  storePassphrase,
+} from "@/lib/keys";
+import { encrypt, decrypt, hashInviteCode } from "@/lib/crypto";
+import Link from "next/link";
+import { Save, Download, ArrowLeft, Lock, Shield, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+
+const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64 text-muted-foreground">
+      Loading editor...
+    </div>
+  ),
+});
+
+export default function EnvEditorPage() {
+  const params = useParams();
+  const orgId = params.orgId as Id<"organizations">;
+  const envId = params.envId as Id<"envFiles">;
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const router = useRouter();
+
+  const org = useQuery(
+    api.organizations.get,
+    isAuthenticated ? { orgId } : "skip",
+  );
+  const envFile = useQuery(
+    api.envFiles.get,
+    isAuthenticated ? { envId } : "skip",
+  );
+  const updateEnv = useMutation(api.envFiles.update);
+  const deleteEnv = useMutation(api.envFiles.remove);
+
+  const [content, setContent] = useState("");
+  const [hasPassphrase, setHasPassphrase] = useState(false);
+  const [passphraseInput, setPassphraseInput] = useState("");
+  const [passphraseError, setPassphraseError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.push("/signin");
+  }, [isAuthenticated, authLoading, router]);
+
+  // Check stored passphrase
+  useEffect(() => {
+    const stored = getStoredPassphrase(orgId);
+    if (stored) setHasPassphrase(true);
+  }, [orgId]);
+
+  // Decrypt content when file loads
+  useEffect(() => {
+    if (!envFile || !org || loaded || !hasPassphrase) return;
+
+    (async () => {
+      try {
+        const key = await getOrDeriveKey(orgId, org.encryptionSalt);
+        if (!key) return;
+        const decrypted = await decrypt(
+          envFile.encryptedContent,
+          envFile.iv,
+          key,
+        );
+        setContent(decrypted);
+        setLoaded(true);
+      } catch (err) {
+        console.error("Decryption failed:", err);
+        setHasPassphrase(false);
+        sessionStorage.removeItem(`dotenv-passphrase-${orgId}`);
+      }
+    })();
+  }, [envFile, org, loaded, hasPassphrase, orgId]);
+
+  const handlePassphraseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifying(true);
+    setPassphraseError(null);
+    try {
+      const hash = await hashInviteCode(passphraseInput);
+      if (org && hash === org.inviteCodeHash) {
+        storePassphrase(orgId, passphraseInput);
+        setHasPassphrase(true);
+        setPassphraseInput("");
+      } else {
+        setPassphraseError("Invalid passphrase");
+      }
+    } catch {
+      setPassphraseError("Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!org) return;
+    setSaving(true);
+    try {
+      const key = await getOrDeriveKey(orgId, org.encryptionSalt);
+      if (!key) return;
+      const { encrypted, iv } = await encrypt(content, key);
+      await updateEnv({ envId, encryptedContent: encrypted, iv });
+      setHasChanges(false);
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [org, orgId, content, envId, updateEnv]);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = envFile?.name ?? ".env";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [content, envFile]);
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this env file? This cannot be undone.")) return;
+    await deleteEnv({ envId });
+    router.push(`/org/${orgId}`);
+  };
+
+  // Keyboard shortcut: Cmd/Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (loaded && hasChanges) {
+          handleSave();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [loaded, hasChanges, handleSave]);
+
+  if (authLoading || !isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <Header />
+
+      {/* Passphrase dialog */}
+      <Dialog
+        open={!hasPassphrase && org !== undefined}
+        onOpenChange={() => {}}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="size-5" />
+              Enter Passphrase
+            </DialogTitle>
+            <DialogDescription>
+              Enter your organization&apos;s invite code to decrypt this file.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePassphraseSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="passphrase">Passphrase</Label>
+              <Input
+                id="passphrase"
+                type="password"
+                value={passphraseInput}
+                onChange={(e) => setPassphraseInput(e.target.value)}
+                placeholder="Enter invite code..."
+                required
+              />
+            </div>
+            {passphraseError && (
+              <p className="text-sm text-destructive">{passphraseError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(`/org/${orgId}`)}
+              >
+                Back
+              </Button>
+              <Button type="submit" disabled={verifying}>
+                {verifying ? "Verifying..." : "Unlock"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Editor toolbar */}
+      {envFile && org && (
+        <>
+          <div className="border-b px-6 py-3 flex items-center justify-between bg-background">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon-sm" asChild>
+                <Link href={`/org/${orgId}`}>
+                  <ArrowLeft className="size-4" />
+                </Link>
+              </Button>
+              <div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Link
+                    href="/"
+                    className="hover:text-foreground transition-colors"
+                  >
+                    Orgs
+                  </Link>
+                  <span>/</span>
+                  <Link
+                    href={`/org/${orgId}`}
+                    className="hover:text-foreground transition-colors"
+                  >
+                    {org.name}
+                  </Link>
+                  <span>/</span>
+                  <span className="text-foreground">{envFile.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-semibold">{envFile.name}</h1>
+                  <Shield className="size-3.5 text-emerald-500" />
+                  {hasChanges && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-medium">
+                      unsaved
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                disabled={!loaded}
+              >
+                <Download className="size-4" />
+                Download
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDelete}>
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || !loaded || !hasChanges}
+              >
+                <Save className="size-4" />
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Editor */}
+          <div className="flex-1">
+            {loaded ? (
+              <CodeMirror
+                value={content}
+                height="calc(100vh - 7.5rem)"
+                theme={vscodeDark}
+                onChange={(value) => {
+                  setContent(value);
+                  setHasChanges(true);
+                }}
+                basicSetup={{
+                  lineNumbers: true,
+                  foldGutter: false,
+                  highlightActiveLine: true,
+                  bracketMatching: true,
+                  closeBrackets: true,
+                  indentOnInput: true,
+                }}
+              />
+            ) : hasPassphrase ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-pulse text-muted-foreground">
+                  Decrypting...
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
