@@ -10,9 +10,7 @@ async function checkMembership(
 ) {
   const membership = await ctx.db
     .query("orgMembers")
-    .withIndex("by_org_user", (q) =>
-      q.eq("orgId", orgId).eq("userId", userId),
-    )
+    .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", userId))
     .unique();
   if (!membership) throw new Error("Not a member of this organization");
   return membership;
@@ -22,6 +20,7 @@ export const create = mutation({
   args: {
     orgId: v.id("organizations"),
     name: v.string(),
+    fileType: v.optional(v.union(v.literal("env"), v.literal("markdown"))),
     encryptedContent: v.string(),
     iv: v.string(),
   },
@@ -33,6 +32,7 @@ export const create = mutation({
     return ctx.db.insert("envFiles", {
       orgId: args.orgId,
       name: args.name,
+      fileType: args.fileType ?? "env",
       encryptedContent: args.encryptedContent,
       iv: args.iv,
       createdBy: userId,

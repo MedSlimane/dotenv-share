@@ -26,6 +26,7 @@ export default defineSchema({
   envFiles: defineTable({
     orgId: v.id("organizations"),
     name: v.string(),
+    fileType: v.optional(v.union(v.literal("env"), v.literal("markdown"))),
     encryptedContent: v.string(),
     iv: v.string(),
     createdBy: v.id("users"),

@@ -14,10 +14,7 @@ import Link from "next/link";
 export default function Dashboard() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
-  const orgs = useQuery(
-    api.organizations.list,
-    isAuthenticated ? {} : "skip"
-  );
+  const orgs = useQuery(api.organizations.list, isAuthenticated ? {} : "skip");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -72,9 +69,7 @@ export default function Dashboard() {
         ) : orgs.length === 0 ? (
           <div className="text-center py-20 border rounded-lg bg-muted/10">
             <Building2 className="size-12 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-lg font-semibold mb-2">
-              No organizations yet
-            </h2>
+            <h2 className="text-lg font-semibold mb-2">No organizations yet</h2>
             <p className="text-muted-foreground mb-6">
               Create an organization or join one with an invite code
             </p>

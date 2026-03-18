@@ -21,8 +21,8 @@ export default function SignIn() {
           dotenv share
         </h1>
         <p className="text-slate-600 dark:text-slate-400">
-          Share environment files securely with your team.
-          Sign in or create an account to get started.
+          Share environment files securely with your team. Sign in or create an
+          account to get started.
         </p>
       </div>
       <form

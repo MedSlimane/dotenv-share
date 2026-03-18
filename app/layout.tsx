@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "dotenv share — Secure Environment File Sharing",
-  description: "Share .env files securely with your team using end-to-end encryption",
+  description:
+    "Share .env files securely with your team using end-to-end encryption",
 };
 
 export default function RootLayout({

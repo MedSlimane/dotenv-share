@@ -41,7 +41,9 @@ export function JoinOrgDialog({ children }: { children: React.ReactNode }) {
       setInviteCode("");
       router.push(`/org/${orgId}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to join organization");
+      setError(
+        err instanceof Error ? err.message : "Failed to join organization",
+      );
     } finally {
       setLoading(false);
     }

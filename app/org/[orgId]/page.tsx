@@ -14,7 +14,7 @@ import {
 } from "@/lib/keys";
 import { hashInviteCode } from "@/lib/crypto";
 import Link from "next/link";
-import { FileText, Plus, Lock, Shield, Trash2, Settings } from "lucide-react";
+import { FileText, FileCode, Plus, Lock, Shield, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,7 +96,9 @@ export default function OrgPage() {
       await deleteOrg({ orgId });
       router.push("/");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to delete organization");
+      alert(
+        err instanceof Error ? err.message : "Failed to delete organization",
+      );
     }
   };
 
@@ -203,7 +205,7 @@ export default function OrgPage() {
                 <CreateEnvDialog orgId={orgId}>
                   <Button>
                     <Plus className="size-4" />
-                    New Env File
+                    New File
                   </Button>
                 </CreateEnvDialog>
               )}
@@ -242,7 +244,7 @@ export default function OrgPage() {
             {/* Env files */}
             <div className="lg:col-span-2 space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Environment Files
+                Files
               </h2>
               {envFiles === undefined ? (
                 <div className="space-y-2">
@@ -257,38 +259,48 @@ export default function OrgPage() {
                 <div className="text-center py-12 border rounded-lg bg-muted/10">
                   <FileText className="size-10 mx-auto text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">
-                    No environment files yet
+                    No files yet
                   </p>
                   {hasPassphrase && (
                     <CreateEnvDialog orgId={orgId}>
                       <Button variant="outline" className="mt-4">
                         <Plus className="size-4" />
-                        Create your first .env file
+                        Create your first file
                       </Button>
                     </CreateEnvDialog>
                   )}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {envFiles.map((file) => (
-                    <Link
-                      key={file._id}
-                      href={`/org/${orgId}/env/${file._id}`}
-                      className="flex items-center gap-3 p-4 border rounded-lg hover:shadow-sm hover:border-emerald-500/30 transition-all group"
-                    >
-                      <FileText className="size-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Updated{" "}
-                          {new Date(file._creationTime).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Shield className="size-4 text-emerald-500" />
-                    </Link>
-                  ))}
+                  {envFiles.map((file) => {
+                    const Icon = file.fileType === "markdown" ? FileText : FileCode;
+                    return (
+                      <Link
+                        key={file._id}
+                        href={`/org/${orgId}/env/${file._id}`}
+                        className="flex items-center gap-3 p-4 border rounded-lg hover:shadow-sm hover:border-emerald-500/30 transition-all group"
+                      >
+                        <Icon className="size-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              {file.name}
+                            </p>
+                            {file.fileType === "markdown" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium shrink-0">
+                                MD
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Updated{" "}
+                            {new Date(file._creationTime).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Shield className="size-4 text-emerald-500" />
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>

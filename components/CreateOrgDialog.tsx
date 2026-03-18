@@ -50,7 +50,9 @@ export function CreateOrgDialog({ children }: { children: React.ReactNode }) {
       setInviteCode("");
       router.push(`/org/${orgId}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create organization");
+      setError(
+        err instanceof Error ? err.message : "Failed to create organization",
+      );
     } finally {
       setLoading(false);
     }
