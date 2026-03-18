@@ -192,7 +192,7 @@ export default function EnvEditorPage() {
   useEffect(() => {
     if (isMarkdown) {
       import("@codemirror/lang-markdown").then(({ markdown }) => {
-        import("@codemirror/language").then(({ languages }) => {
+        import("@codemirror/language-data").then(({ languages }) => {
           setMarkdownExtensions([markdown({ codeLanguages: languages })]);
         });
       });
